@@ -1,5 +1,6 @@
 
 from operator import attrgetter
+from networkx.classes.function import is_empty
 
 from ryu.base import app_manager
 from ryu.controller import ofp_event
@@ -19,7 +20,6 @@ import time
 
 import network_discovery
 import delay_collector
-# import manager
 import json, ast
 import setting
 import csv
@@ -80,7 +80,7 @@ class NetworkStatistics(app_manager.RyuApp):
         self.loss_paths= {}
 
         self.values_reward = {}
-        self.monitor_thread = hub.spawn(self.monitor)
+        self.monitor_thread = hub.spawn_after(setting.MONITOR_AND_DELAYDETECTOR_BOOTSTRAP_DELAY,self.monitor)
 
     @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def _state_change_handler(self, ev):
@@ -101,6 +101,7 @@ class NetworkStatistics(app_manager.RyuApp):
         """
             Main entry method of monitoring traffic.
         """
+        
         while True:
             self.count_monitor += 1
             self.stats['flow'] = {}
@@ -112,8 +113,8 @@ class NetworkStatistics(app_manager.RyuApp):
                 self.paths = {}
                 # self.paths = None
                 self.request_stats(dp)
-            if self.discovery.link_to_port:
-                self.flow_install_monitor() #IMPLEMENT
+            if self.discovery.link_to_port and len(self.datapaths) >= 32:
+                self.flow_install_monitor() #To Be IMPLEMENTED
             if self.stats['port']:
                 print("[stats port Ok]")
                 self.get_port_loss()
@@ -174,59 +175,67 @@ class NetworkStatistics(app_manager.RyuApp):
         flow_info = (ip_src, ip_dst)
         # flow_info = (eth_type, ip_src, ip_dst, in_port)
         # install flow entries to datapath along the path
+
         self.install_flow(self.datapaths, self.discovery.link_to_port, path, flow_info)
 
     def get_path(self, src, dst):
-        
-            if self.paths != None:
-                # print ('PATHS: OK')
-                path = self.paths[src][dst][0]
-                return path
-            else:
-                # print('Getting paths: OK')
-                paths = self.get_dRL_paths()
-                path = paths[src][dst][0]
-                return path
+        if self.paths != {}:
+            # print ('PATHS: OK')
+            path = self.paths[src][dst][0]
+            return path
+        else:
+            # print('Getting paths: OK')
+            paths = self.get_dRL_paths()
+            path = paths[src][dst][0]
+            return path
     
-    def get_dRL_paths(self) -> dict:
+    def get_dRL_paths(self):
         '''
             run DRL_paths_threading.py with current topology setting
             (number of nodes) and then load the drl_paths.json file
             and return self.paths dictionary
+
+            HAMED: For now, I use the shortest_path 
+            ( index 0 among 20 shortest paths in k_paths.json file) for testing purposes
         '''
 
+        # file = setting.PATH_TO_FILES+'/DRL/32nodes/dr_path.json'
+        file = setting.PATH_TO_FILES+'/DRL/32nodes/k_paths.json'
         # file = setting.PATH_TO_FILES+'/DRL/32nodes/drl_paths.json'
-        # try:
-        #     with open(file,'r') as json_file:
-        #         paths_dict = json.load(json_file)
-        #         paths_dict = ast.literal_eval(json.dumps(paths_dict))
-        #         self.paths = paths_dict
-        #         # print(self.paths)
-        #         return self.paths
-        # # except ValueError as e: #error excpetion when trying to read the json and is still been updated
-        # #     return
-        # except:
-        #     time.sleep(0.35)
-        #     with open(file,'r') as json_file: #try again
-        #         paths_dict = json.load(json_file)
-        #         paths_dict = ast.literal_eval(json.dumps(paths_dict))
-        #         self.paths = paths_dict
-        #         # print(self.paths)
-        #         return self.paths
+        try:
+            with open(file,'r') as json_file:
 
-        # finally:
-        #     with open(file,'r') as json_file: #try again
-        #         paths_dict = json.load(json_file)
-        #         paths_dict = ast.literal_eval(json.dumps(paths_dict))
-        #         self.paths = paths_dict
-        #         return self.paths
-        pass
+                paths_dict = json.load(json_file)
+                paths_dict = ast.literal_eval(json.dumps(paths_dict))
+                # self.test_output("drl_paths",paths_dict)
+                self.paths = paths_dict
+                # print(self.paths)
+                return self.paths
+        # except ValueError as e: #error excpetion when trying to read the json and is still been updated
+        #     return
+        except:
+            time.sleep(0.35)
+            with open(file,'r') as json_file: #try again
+                paths_dict = json.load(json_file)
+                paths_dict = ast.literal_eval(json.dumps(paths_dict))
+                self.paths = paths_dict
+                # print(self.paths)
+                return self.paths
+
+        finally:
+            with open(file,'r') as json_file: #try again
+                paths_dict = json.load(json_file)
+                paths_dict = ast.literal_eval(json.dumps(paths_dict))
+                self.paths = paths_dict
+                return self.paths
 
     def get_port_pair_from_link(self, link_to_port, src_dpid, dst_dpid):
         """
             Get port pair of link, so that controller can install flow entry.
             link_to_port = {(src_dpid,dst_dpid):(src_port,dst_port),}
         """
+        # self.test_output("link_to_port",link_to_port)
+        # self.test_output("link_to_port[(src_dpid, dst_dpid)]",link_to_port[(src_dpid, dst_dpid)])
         if (src_dpid, dst_dpid) in link_to_port:
             return link_to_port[(src_dpid, dst_dpid)]
         else:
@@ -252,7 +261,7 @@ class NetworkStatistics(app_manager.RyuApp):
         out_port = first_dp.ofproto.OFPP_LOCAL
         back_info = (flow_info[1], flow_info[0])
 
-        # Flow installing por middle datapaths in path
+        # Flow installing for middle datapaths in path
         if len(path) > 2:
             for i in range(1, len(path)-1):
                 port = self.get_port_pair_from_link(link_to_port,
@@ -423,6 +432,7 @@ class NetworkStatistics(app_manager.RyuApp):
                 bw_capacity_dict.setdefault(s1,{})
                 bw_capacity_dict[str(a[0])][str(a[1])] = bwd
         fin.close()
+        self.test_output("bw_capacity_dict",bw_capacity_dict)
         bw_link = bw_capacity_dict[str(src_dpid)][str(dst_dpid)]
         return bw_link
 
@@ -442,9 +452,16 @@ class NetworkStatistics(app_manager.RyuApp):
 
         for dp in sorted(bodies.keys()):
             for stat in sorted(bodies[dp], key=attrgetter('port_no')):
+                self.test_output("(dp, stat.port_no)",(dp, stat.port_no))
+                
                 if self.discovery.link_to_port and stat.port_no != 1 and stat.port_no != ofproto_v1_3.OFPP_LOCAL: #get loss form ports of network
+                    
+                    self.test_output("(dp, stat.port_no) in if",(dp, stat.port_no))
+                    
                     key1 = (dp, stat.port_no)
-                    # print(self.port_stats)
+                    self.test_output("(dp, stat.port_no) in if key1",key1)
+                    self.test_output("self.port_stats[key1]",self.port_stats[key1])
+
                     tmp1 = self.port_stats[key1]
                     tx_bytes_src = tmp1[-1][0]
                     tx_pkts_src = tmp1[-1][8]
@@ -526,11 +543,8 @@ class NetworkStatistics(app_manager.RyuApp):
                 
             # print(self.net_info[(1, 7)])
             file_net_info = setting.PATH_TO_FILES+"/DRL/32nodes/net_info/net_info.csv"
-            print(f'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD')
-            print(f'{file_net_info} opened')
-            print('DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD')
             os.makedirs(os.path.dirname(file_net_info), exist_ok=True)
-            with open(file_net_info,'wb') as csvfile:
+            with open(file_net_info,'w') as csvfile:
                 
                 header_names = ['node1','node2','bwd','delay','pkloss']
                 file = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
@@ -544,7 +558,7 @@ class NetworkStatistics(app_manager.RyuApp):
 
             file_metrics = setting.PATH_TO_FILES+'/DRL/32nodes/net_info/Metrics/'+str(self.count_monitor)+'_net_metrics.csv'
             os.makedirs(os.path.dirname(file_metrics), exist_ok=True)
-            with open(file_metrics,'wb') as csvfile:
+            with open(file_metrics,'w') as csvfile:
                 header_ = ['node1','node2','free_bw','used_bw','delay','pkloss']
                 file = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
                 links_in = []
@@ -568,7 +582,7 @@ class NetworkStatistics(app_manager.RyuApp):
         
             file_net_info = setting.PATH_TO_FILES+"/DRL/32nodes/net_info/net_info.csv"
             os.makedirs(os.path.dirname(file_net_info), exist_ok=True)
-            with open(file_net_info,'wb') as csvfile:
+            with open(file_net_info,'w') as csvfile:
                 header_names = ['node1','node2','bwd','delay','pkloss']
                 file = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
                 links_in = []
@@ -581,7 +595,7 @@ class NetworkStatistics(app_manager.RyuApp):
 
             file_metrics = setting.PATH_TO_FILES+'/DRL/32nodes/net_info/Metrics/'+str(self.count_monitor)+'_net_metrics.csv'
             os.makedirs(os.path.dirname(file_metrics), exist_ok=True)
-            with open(file_metrics,'wb') as csvfile:
+            with open(file_metrics,'w') as csvfile:
                 header_ = ['node1','node2','free_bw','used_bw','delay','pkloss']
                 file = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
                 links_in = []
@@ -743,15 +757,9 @@ class NetworkStatistics(app_manager.RyuApp):
         body = ev.msg.body
         dpid = ev.msg.datapath.id
 
-        self.test_output('port stat rcved from', dpid)
-
-
-
-
         self.stats['port'][dpid] = body
         self.free_bandwidth.setdefault(dpid, {})
         self.port_loss.setdefault(dpid, {})
-        self.test_output('self.discovery.link_to_port',self.discovery.link_to_port)
 
         """
             Save port's stats information into self.port_stats.
@@ -776,15 +784,21 @@ class NetworkStatistics(app_manager.RyuApp):
             port_no = stat.port_no
             key = (dpid, port_no) #src_dpid, src_port
             value = (stat.tx_bytes, stat.rx_bytes, stat.rx_errors,
-                     stat.duration_sec, stat.duration_nsec, stat.tx_errors, stat.tx_dropped, stat.rx_dropped, stat.tx_packets, stat.rx_packets)
+                     stat.duration_sec, stat.duration_nsec, stat.tx_errors, stat.tx_dropped, stat.rx_dropped, 
+                     stat.tx_packets, stat.rx_packets)
             self.save_stats(self.port_stats, key, value, 5)
 
-            
+
+            self.test_output("dpid received stats",dpid)
+
+            if dpid == 1:
+                self.test_output("dp 1 port_stats stored perfectly",self.port_stats)
+                self.test_output("dp 1 port_stats stored perfectly",self.stats['port'])
             if port_no != ofproto_v1_3.OFPP_LOCAL: #if it is diff from the local port of the sw where port is read        
                 if port_no != 1 and self.discovery.link_to_port :
                     # Get port speed and Save it.
                     pre = 0
-                    self.test_output('port_no',port_no)
+                    # self.test_output('port_no',port_no)
                     
                     period = setting.MONITOR_PERIOD
                     tmp = self.port_stats[key]
@@ -802,8 +816,6 @@ class NetworkStatistics(app_manager.RyuApp):
                     # file = '~/ryu/ryu/app/SDNapps_proac/bw.txt' #original link capacities
                     
                     file_bw = setting.PATH_TO_FILES+'/bw_r.txt' #random link capacities
-                    
-                    # self.test_output('file_bw',file_bw)
 
                     link_to_port = self.discovery.link_to_port
 
@@ -819,8 +831,10 @@ class NetworkStatistics(app_manager.RyuApp):
                                 # if len(list_dst_dpid) > 0:
                                 #     dst_dpid = list_dst_dpid[0][1]
                                 # ----------------------------------------- 
-                                bw_link = float(self.get_link_bw(file_bw, dpid, dst_dpid)) 
-                                # bw_link = float(100) #resto de topologias todos los links tienen 10mbps de capacidad
+                                # bw_link = float(self.get_link_bw(file_bw, dpid, dst_dpid)) 
+                                
+                                bw_link = float(100) #HAMED: all links have 10mbps capacity for TESTING Purposes
+                                
                                 port_state = self.port_features.get(dpid).get(port_no)
 
                                 if port_state:
@@ -831,7 +845,6 @@ class NetworkStatistics(app_manager.RyuApp):
                                     # print('------------------------------------')
                                     self.free_bandwidth[dpid][port_no] = free_bw    
         # print("stats time {0}".format(time.time()-a))
-        pass
 
     @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
     def port_desc_stats_reply_handler(self, ev):
@@ -1005,9 +1018,15 @@ class NetworkStatistics(app_manager.RyuApp):
 
         req = parser.OFPPortStatsRequest(datapath, 0, ofproto.OFPP_ANY)
         datapath.send_msg(req)
-        self.test_output('port stat sent to', datapath.id)
+        # self.test_output('port stat sent to', datapath.id)
 
     def test_output(self,title = '',input=None):
+        print('DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD')
+        print(f'{title}\n')
+        print(f'{input}\n')
+        print('DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD')
+
+    def test_output_params(self,title,**input):
         print('DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD')
         print(f'{title}\n')
         print(f'{input}\n')

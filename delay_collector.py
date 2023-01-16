@@ -46,7 +46,7 @@ class DelayCollector(app_manager.RyuApp):
         self.echo_sent_time = {}
         self.echo_rcv_time = {}
 
-        self.measure_thread = hub.spawn(self._detector)
+        self.measure_thread = hub.spawn_after(setting.MONITOR_AND_DELAYDETECTOR_BOOTSTRAP_DELAY,self._detector)
 
     @set_ev_cls(ofp_event.EventOFPStateChange,
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])

@@ -106,7 +106,7 @@ class NetworkDiscovery(app_manager.RyuApp):
             with open(file_graph,'w') as json_file:
                 json.dump(graph_dict, json_file, indent=2)
         
-        print('topology',graph_dict)
+        # print('topology',graph_dict)
 
         # self.shortest_paths = self.get_k_paths() 
         # k shorthest paths for drl--> removed from C0 since huge CPU consumptio
@@ -115,7 +115,7 @@ class NetworkDiscovery(app_manager.RyuApp):
         #     self.graph, weight='weight', k=1)
 
         self.logger.info("[Network Discovery Ok]")
-
+        
         if setting.TOSHOW:
             self.logger.info (f"Switches:{self.switches}")
             
