@@ -18,3 +18,5 @@ List of files and dirs:
 - **topo** directory contains mininet script
 - **miscNotebook.ipynb** notebook is only for testing and logging purposes 
  
+
+ **Still need to figure out why "net_info.csv" is not populated. **
