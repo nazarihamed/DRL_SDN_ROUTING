@@ -20,4 +20,4 @@ List of files and dirs:
 - **miscNotebook.ipynb** notebook is only for testing and logging purposes 
  
 
- **TODO:** flowinfo in install flows need to be resolved to be able to add flow entries to switches. ether_type and ethernet src and dst need to be added to flowinfo
+ **TODO:** flow_info = (ip_src, ip_dst) in flow_install_monitor() -> forwarding() -> install_flow()  (in network_statistics.py) need to be resolved to be able to add flow entries to switches. ether_type and ethernet src and dst need to be added to flow_info
