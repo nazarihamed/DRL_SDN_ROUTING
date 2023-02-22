@@ -18,6 +18,7 @@ List of files and dirs:
 - **network_discovery.py** is the module for discovering the topology. At the begining controller waits to all the topology be discovered. Then, it starts monitoring process.
 - **topo** directory contains topology and mininet scripts
 - **miscNotebook.ipynb** notebook is only for testing and logging purposes 
- 
+- **setting.py** all constant configurations are here for more convenience.
+	- **NOTE** PATH_TO_FILES need to be updated 
 
  **TODO:** flow_info = (ip_src, ip_dst) in flow_install_monitor() -> forwarding() -> install_flow()  (in network_statistics.py) need to be resolved to be able to add flow entries to switches. ether_type and ethernet src and dst need to be added to flow_info
