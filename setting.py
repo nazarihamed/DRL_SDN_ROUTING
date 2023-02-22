@@ -2,7 +2,7 @@ DISCOVERY_PERIOD = 5# #5For discovering topology. do discovery every 5 sec
 
 MONITOR_PERIOD = 10# #5 For monitoring traffic. do monitoring every 5 sec
 
-MONITOR_AND_DELAYDETECTOR_BOOTSTRAP_DELAY= 30 # wait to all the topology being discovered
+MONITOR_AND_DELAYDETECTOR_BOOTSTRAP_DELAY= 60 # wait to all the topology being discovered
 
 DELAY_DETECTING_PERIOD = 10 #5For delay detecting. do delay detecting every 5 sec
 
@@ -14,6 +14,8 @@ TOSHOW = False	   # For showing information in terminal
 PATH_TO_FILES = "/home/csnetuofr/monitoring"
 
 NUMBER_OF_NODES = 32
+
+NUMBER_OF_LINKS = 128
 
 '''
 for 64 nodes try to run with discover 10, monitor 15, delay 13 but it seems that the monitor is not enough for the drl, 

@@ -1,5 +1,6 @@
 
 from ryu.base import app_manager
+from ryu.base.app_manager import lookup_service_brick
 from ryu.controller.handler import set_ev_cls
 from ryu.topology import event, switches
 from ryu.topology.api import get_switch, get_link
@@ -41,6 +42,7 @@ class NetworkDiscovery(app_manager.RyuApp):
         self.switch_mac_table = {}            # {sw: [mac, mac, ...]}
         self.arp_table = {}                   # {ip:mac}
         self.rev_arp_table = {}               # {mac:ip}
+
         
         #Added by HAMED: For testing 32 nodes Scenario
         # for i in range(1,33):
@@ -106,6 +108,9 @@ class NetworkDiscovery(app_manager.RyuApp):
             with open(file_graph,'w') as json_file:
                 json.dump(graph_dict, json_file, indent=2)
         
+
+
+
         # print('topology',graph_dict)
 
         # self.shortest_paths = self.get_k_paths() 

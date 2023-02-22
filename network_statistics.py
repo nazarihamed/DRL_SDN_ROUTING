@@ -40,6 +40,8 @@ class NetworkStatistics(app_manager.RyuApp):
     
     _CONTEXTS = {"discovery": network_discovery.NetworkDiscovery,
                  "delay": delay_collector.DelayCollector}
+    
+    
 
     def __init__(self, *args, **kwargs):
         super(NetworkStatistics, self).__init__(*args, **kwargs)
@@ -80,7 +82,12 @@ class NetworkStatistics(app_manager.RyuApp):
         self.loss_paths= {}
 
         self.values_reward = {}
+        
+        self.exec_flag=False
+
         self.monitor_thread = hub.spawn_after(setting.MONITOR_AND_DELAYDETECTOR_BOOTSTRAP_DELAY,self.monitor)
+
+
 
     @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def _state_change_handler(self, ev):
@@ -96,12 +103,31 @@ class NetworkStatistics(app_manager.RyuApp):
                 self.logger.debug(f'unregister datapath: {datapath.id:016x}')
                 # print(f'unregister datapath: {datapath.id:016x}')
                 del self.datapaths[datapath.id]
+                
 
     def monitor(self):
         """
             Main entry method of monitoring traffic.
         """
-        
+        #HAMED added to create manager level dics for writing values into file in func Write_values()
+        print('---------------------------------------------------')
+        if len(self.discovery.link_to_port.keys()) == setting.NUMBER_OF_LINKS and self.exec_flag==False:
+            for link in self.discovery.link_to_port.keys():
+                self.link_free_bw.setdefault(link,0)
+                self.link_used_bw.setdefault(link,0)
+                
+                self.link_loss.setdefault(link,0)
+                
+                self.delay.link_delay.setdefault(link,0)
+                
+                self.net_info.setdefault(link,0)
+                self.net_metrics.setdefault(link,0)
+
+                self.exec_flag=True
+
+                print(f'link: {link}')
+
+        print('---------------------------------------------------')
         while True:
             self.count_monitor += 1
             self.stats['flow'] = {}
@@ -113,7 +139,7 @@ class NetworkStatistics(app_manager.RyuApp):
                 self.paths = {}
                 # self.paths = None
                 self.request_stats(dp)
-            if self.discovery.link_to_port and len(self.datapaths) >= 32:
+            if self.discovery.link_to_port and len(self.datapaths) >= setting.NUMBER_OF_NODES:
                 self.flow_install_monitor() #To Be IMPLEMENTED
             if self.stats['port']:
                 print("[stats port Ok]")
@@ -126,7 +152,7 @@ class NetworkStatistics(app_manager.RyuApp):
                 # print(self.manager.link_free_bw, self.delay.link_delay, self.manager.link_loss)
                 
                 if self.link_free_bw and self.shortest_paths:
-                    # print("[paths metrics Ok]")
+                    print("[paths metrics Ok]")
                     self.get_k_paths_metrics_dic(self.shortest_paths,self.link_free_bw, self.delay.link_delay, self.link_loss)
 
                 self.show_stat('link')
@@ -335,7 +361,7 @@ class NetworkStatistics(app_manager.RyuApp):
                                 match=match, instructions=inst)
         dp.send_msg(mod)
 
-    def del_flow(self, datapath, dst):
+    def del_flow(self, datapath, flow_info):
         """
             Deletes a flow entry of the datapath.
         """
@@ -432,7 +458,7 @@ class NetworkStatistics(app_manager.RyuApp):
                 bw_capacity_dict.setdefault(s1,{})
                 bw_capacity_dict[str(a[0])][str(a[1])] = bwd
         fin.close()
-        self.test_output("bw_capacity_dict",bw_capacity_dict)
+        # self.test_output("bw_capacity_dict",bw_capacity_dict)
         bw_link = bw_capacity_dict[str(src_dpid)][str(dst_dpid)]
         return bw_link
 
@@ -452,15 +478,15 @@ class NetworkStatistics(app_manager.RyuApp):
 
         for dp in sorted(bodies.keys()):
             for stat in sorted(bodies[dp], key=attrgetter('port_no')):
-                self.test_output("(dp, stat.port_no)",(dp, stat.port_no))
+                # self.test_output("(dp, stat.port_no)",(dp, stat.port_no))
                 
                 if self.discovery.link_to_port and stat.port_no != 1 and stat.port_no != ofproto_v1_3.OFPP_LOCAL: #get loss form ports of network
                     
-                    self.test_output("(dp, stat.port_no) in if",(dp, stat.port_no))
+                    # self.test_output("(dp, stat.port_no) in if",(dp, stat.port_no))
                     
                     key1 = (dp, stat.port_no)
-                    self.test_output("(dp, stat.port_no) in if key1",key1)
-                    self.test_output("self.port_stats[key1]",self.port_stats[key1])
+                    # self.test_output("(dp, stat.port_no) in if key1",key1)
+                    # self.test_output("self.port_stats[key1]",self.port_stats[key1])
 
                     tmp1 = self.port_stats[key1]
                     tx_bytes_src = tmp1[-1][0]
@@ -500,6 +526,9 @@ class NetworkStatistics(app_manager.RyuApp):
                 free_bw1 = self.free_bandwidth[dp][port]
                 key2 = self.get_sw_dst(dp, port) #key2 = (dp,port)
                 free_bw2= self.free_bandwidth[key2[0]][key2[1]]
+                
+                # self.test_output_params("dp bw1 bw2 in get_link_free_bw:",dpid=dp,bw1=free_bw1,bw2=free_bw2)
+
                 # for DRL I am changing which is the bw of the link... it is the min of both, the worst case, not the average
                 link_free_bw = min(free_bw1,free_bw2) 
                 link = (dp, key2[0])
@@ -508,7 +537,6 @@ class NetworkStatistics(app_manager.RyuApp):
         # print('- - - - -  - - - - - - - - ')
         # print(self.link_free_bw)
         # print('Time to get link_free_bw', time.time()-i)
-        pass
 
     def get_link_used_bw(self):
         #Calculates the total free bw of link and save it in self.link_free_bw[(node1,node2)]:link_free_bw
@@ -536,7 +564,8 @@ class NetworkStatistics(app_manager.RyuApp):
         #     self.delay = app_manager.lookup_service_brick('delay')
         # else:    
         if self.delay is not None:
-            for link in self.link_free_bw:
+            for link in self.link_free_bw.keys():
+                # self.test_output("link in write_values",link)
                 # print('loss_links', self.link_loss)
                 self.net_info[link] = [round(self.link_free_bw[link],6) , round(self.delay.link_delay[link],6), round(self.link_loss[link],6)]
                 self.net_metrics[link] = [round(self.link_free_bw[link],6), round(self.link_used_bw[link],6), round(self.delay.link_delay[link],6), round(self.link_loss[link],6)]
@@ -789,11 +818,11 @@ class NetworkStatistics(app_manager.RyuApp):
             self.save_stats(self.port_stats, key, value, 5)
 
 
-            self.test_output("dpid received stats",dpid)
+            # self.test_output("dpid received stats",dpid)
 
-            if dpid == 1:
-                self.test_output("dp 1 port_stats stored perfectly",self.port_stats)
-                self.test_output("dp 1 port_stats stored perfectly",self.stats['port'])
+            # if dpid == 1:
+                # self.test_output("dp 1 port_stats stored perfectly",self.port_stats)
+                # self.test_output("dp 1 port_stats stored perfectly",self.stats['port'])
             if port_no != ofproto_v1_3.OFPP_LOCAL: #if it is diff from the local port of the sw where port is read        
                 if port_no != 1 and self.discovery.link_to_port :
                     # Get port speed and Save it.
@@ -841,7 +870,7 @@ class NetworkStatistics(app_manager.RyuApp):
                                     bw_link_kbps = bw_link * 1000.0
                                     self.port_features[dpid][port_no].append(bw_link_kbps)                     
                                     free_bw = self.get_free_bw(bw_link_kbps, speed)
-                                    # print'free_bw of link ({0}, {1}) is: {2}'.format(dpid,dst_dpid,free_bw)
+                                    # print('free_bw of link ({0}, {1}) is: {2}'.format(dpid,dst_dpid,free_bw))
                                     # print('------------------------------------')
                                     self.free_bandwidth[dpid][port_no] = free_bw    
         # print("stats time {0}".format(time.time()-a))
@@ -1016,8 +1045,13 @@ class NetworkStatistics(app_manager.RyuApp):
         req = parser.OFPFlowStatsRequest(datapath)
         datapath.send_msg(req)
 
+        req = parser.OFPPortDescStatsRequest(datapath, 0) #for port description 
+        datapath.send_msg(req)
+
         req = parser.OFPPortStatsRequest(datapath, 0, ofproto.OFPP_ANY)
         datapath.send_msg(req)
+
+
         # self.test_output('port stat sent to', datapath.id)
 
     def test_output(self,title = '',input=None):
