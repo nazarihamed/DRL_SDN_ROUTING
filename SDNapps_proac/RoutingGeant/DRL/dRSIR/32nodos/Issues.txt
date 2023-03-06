@@ -1,2 +1,0 @@
-system path issue - modify path 
-remove from all paths "/home/controlador/ryu/ryu/app/" we dnt need this

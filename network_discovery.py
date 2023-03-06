@@ -276,7 +276,7 @@ class NetworkDiscovery(app_manager.RyuApp):
             for dst in self.switches:
                 if src.dp.id == dst.dp.id:
                     _graph.add_edge(src.dp.id, dst.dp.id, weight=0)
-                elif (src, dst) in link_list:
+                elif (src.dp.id, dst.dp.id) in link_list:
                     _graph.add_edge(src.dp.id, dst.dp.id, weight=1)
                 else:
                     pass

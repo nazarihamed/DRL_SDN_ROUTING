@@ -222,7 +222,7 @@ class NetworkStatistics(app_manager.RyuApp):
             and return self.paths dictionary
 
             HAMED: For now, I use the shortest_path 
-            ( index 0 among 20 shortest paths in k_paths.json file) for testing purposes
+            (index 0 among 20 shortest paths in k_paths.json file) for testing purposes
         '''
 
         # file = setting.PATH_TO_FILES+'/DRL/32nodes/dr_path.json'

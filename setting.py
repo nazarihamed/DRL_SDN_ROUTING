@@ -17,6 +17,22 @@ NUMBER_OF_NODES = 32
 
 NUMBER_OF_LINKS = 128
 
+
+from enum import Enum
+
+class Thread(Enum):
+    Nodes_23 = 28
+    Nodes_32 = 40
+    Nodes_48 = 38
+    Nodes_64 = 45
+
+
+
+Environment = "environment_test_32nodes"
+drl_thread = Thread.Nodes_32
+num_nodes = 32
+
+
 '''
 for 64 nodes try to run with discover 10, monitor 15, delay 13 but it seems that the monitor is not enough for the drl, 
 if you touch it increases rmuco then paila, then savoy to do with 48 nodes
