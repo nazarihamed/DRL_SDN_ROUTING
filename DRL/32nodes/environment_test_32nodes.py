@@ -5,7 +5,7 @@ import numpy as np
 import json, ast
 import agent
 import os
-import setting
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
@@ -34,7 +34,8 @@ class Environment(object):
                         reward =  self.rewards_dic[str(src)][str(dst)][action]
                         self.P[state][action].append((new_state, reward, done))
 
-        with open('rewards_dic.json','w') as json_file:
+        rewards_file = 'DRL/'+str(len(self.topo_nodes))+'nodes/rewards_dic.json'
+        with open(rewards_file,'w') as json_file:
             json.dump(self.rewards_dic, json_file, indent=2)
              
              
@@ -83,7 +84,9 @@ class Environment(object):
         # ini = time.time()
         """Modify path remove ryu"""
         # file = '/home/controlador/ryu/ryu/app/SDNapps_proac/paths_metrics.json'
-        file = 'paths_metrics.json'
+        import os 
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        file = 'DRL/'+str(len(self.topo_nodes))+'nodes/paths_metrics.json'
         num_actions = self.act_space_size
         rewards_dic = {}
         metrics = ['bwd_paths','delay_paths','loss_paths']
